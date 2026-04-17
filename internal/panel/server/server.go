@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"embed"
 	"encoding/json"
 	"errors"
@@ -10,6 +11,8 @@ import (
 	"time"
 
 	"github.com/julianbenz1/SpareCompute/internal/common"
+	"github.com/julianbenz1/SpareCompute/internal/panel/ingress"
+	panelruntime "github.com/julianbenz1/SpareCompute/internal/panel/runtime"
 	"github.com/julianbenz1/SpareCompute/internal/panel/scheduler"
 	"github.com/julianbenz1/SpareCompute/internal/panel/store"
 )
@@ -18,12 +21,19 @@ import (
 var uiFS embed.FS
 
 type Server struct {
-	store      *store.Store
-	panelToken string
+	store         *store.Store
+	panelToken    string
+	runtimeClient *panelruntime.Client
+	ingress       *ingress.TraefikFileManager
 }
 
-func New(st *store.Store, panelToken string) *Server {
-	return &Server{store: st, panelToken: panelToken}
+func New(st *store.Store, panelToken string, runtimeClient *panelruntime.Client, ingressManager *ingress.TraefikFileManager) *Server {
+	return &Server{
+		store:         st,
+		panelToken:    panelToken,
+		runtimeClient: runtimeClient,
+		ingress:       ingressManager,
+	}
 }
 
 func (s *Server) Handler() http.Handler {
@@ -209,18 +219,33 @@ func (s *Server) placeDeployment(dep common.Deployment, excludeNodeID string) er
 		return errors.New("scheduler failed")
 	}
 	old, hadOld := s.store.GetActiveInstanceByDeployment(dep.ID)
+	var oldNode common.Node
+	var hasOldNode bool
 	if hadOld {
+		oldNode, hasOldNode = s.store.GetNode(old.NodeID)
 		old.Status = common.InstanceStopping
 		s.store.SaveInstance(old)
+		s.store.MarkDeploymentStatus(dep.ID, common.DeploymentMigrating, old.NodeID)
 	}
-
+	newInstanceID, startResp, err := s.startOrMigrateInstance(dep, target, old, hadOld, oldNode, hasOldNode)
+	if err != nil {
+		if hadOld {
+			old.Status = common.InstanceRunning
+			s.store.SaveInstance(old)
+		}
+		return err
+	}
 	newInstance := common.Instance{
-		ID:           s.store.NewID("inst"),
+		ID:           newInstanceID,
 		DeploymentID: dep.ID,
 		NodeID:       target.ID,
+		ContainerID:  startResp.ContainerID,
+		ContainerRef: startResp.ContainerRef,
 		Status:       common.InstanceRunning,
 		HealthStatus: common.HealthHealthy,
+		InternalIP:   target.PublicAddress,
 		InternalPort: dep.InternalPort,
+		HostPort:     startResp.HostPort,
 		StartedAt:    time.Now().UTC(),
 		LastHealthAt: time.Now().UTC(),
 	}
@@ -236,7 +261,67 @@ func (s *Server) placeDeployment(dep common.Deployment, excludeNodeID string) er
 	}
 	s.store.SaveRoute(route)
 	s.store.MarkDeploymentStatus(dep.ID, common.DeploymentRunning, target.ID)
+	s.syncIngress()
+	if hadOld && hasOldNode && old.ContainerRef != "" {
+		_ = s.runtimeClient.Stop(context.Background(), oldNode.ControlAPIURL, common.RuntimeStopRequest{
+			ContainerRef: old.ContainerRef,
+		})
+		old.Status = common.InstanceStopped
+		s.store.SaveInstance(old)
+	}
 	return nil
+}
+
+func (s *Server) startOrMigrateInstance(dep common.Deployment, target common.Node, old common.Instance, hadOld bool, oldNode common.Node, hasOldNode bool) (string, common.RuntimeStartResponse, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	newInstanceID := s.store.NewID("inst")
+	startReq := common.RuntimeStartRequest{
+		InstanceID:   newInstanceID,
+		Image:        dep.Image,
+		InternalPort: dep.InternalPort,
+	}
+	if !hadOld {
+		resp, err := s.runtimeClient.Start(ctx, target.ControlAPIURL, startReq)
+		return newInstanceID, resp, err
+	}
+	if hasOldNode && old.ContainerRef != "" && oldNode.ControlAPIURL != "" && target.ControlAPIURL != "" {
+		migrationID := s.store.NewID("mig")
+		if err := s.runtimeClient.Checkpoint(ctx, oldNode.ControlAPIURL, common.RuntimeCheckpointRequest{
+			ContainerRef: old.ContainerRef,
+			MigrationID:  migrationID,
+		}); err == nil {
+			restoreResp, restoreErr := s.runtimeClient.Restore(ctx, target.ControlAPIURL, common.RuntimeRestoreRequest{
+				InstanceID:   newInstanceID,
+				Image:        dep.Image,
+				InternalPort: dep.InternalPort,
+				MigrationID:  migrationID,
+			})
+			if restoreErr == nil {
+				return newInstanceID, restoreResp, nil
+			}
+		}
+	}
+	resp, err := s.runtimeClient.Start(ctx, target.ControlAPIURL, startReq)
+	return newInstanceID, resp, err
+}
+
+func (s *Server) syncIngress() {
+	if s.ingress == nil || !s.ingress.Enabled() {
+		return
+	}
+	instancesSlice := s.store.ListInstances()
+	instanceMap := make(map[string]common.Instance, len(instancesSlice))
+	for _, inst := range instancesSlice {
+		instanceMap[inst.ID] = inst
+	}
+	nodesSlice := s.store.ListNodes()
+	nodeMap := make(map[string]common.Node, len(nodesSlice))
+	for _, node := range nodesSlice {
+		nodeMap[node.ID] = node
+	}
+	targets := ingress.BuildTargets(s.store.ListRoutes(), instanceMap, nodeMap)
+	_ = s.ingress.Sync(targets)
 }
 
 func decodeJSON(r *http.Request, dst any) error {

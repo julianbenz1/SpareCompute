@@ -34,6 +34,8 @@ const (
 type Node struct {
 	ID                 string            `json:"id"`
 	Name               string            `json:"name"`
+	ControlAPIURL      string            `json:"control_api_url,omitempty"`
+	PublicAddress      string            `json:"public_address,omitempty"`
 	OwnerID            string            `json:"owner_id,omitempty"`
 	Status             NodeStatus        `json:"status"`
 	Labels             map[string]string `json:"labels,omitempty"`
@@ -53,6 +55,8 @@ type Node struct {
 type NodeRegisterRequest struct {
 	ID                 string            `json:"id"`
 	Name               string            `json:"name"`
+	ControlAPIURL      string            `json:"control_api_url,omitempty"`
+	PublicAddress      string            `json:"public_address,omitempty"`
 	Labels             map[string]string `json:"labels,omitempty"`
 	TotalCPUCores      int               `json:"total_cpu_cores"`
 	TotalRAMMB         int64             `json:"total_ram_mb"`
@@ -133,10 +137,12 @@ type Instance struct {
 	DeploymentID string         `json:"deployment_id"`
 	NodeID       string         `json:"node_id"`
 	ContainerID  string         `json:"container_id,omitempty"`
+	ContainerRef string         `json:"container_ref,omitempty"`
 	Status       InstanceStatus `json:"status"`
 	HealthStatus HealthStatus   `json:"health_status"`
 	InternalIP   string         `json:"internal_ip,omitempty"`
 	InternalPort int            `json:"internal_port"`
+	HostPort     int            `json:"host_port,omitempty"`
 	StartedAt    time.Time      `json:"started_at"`
 	LastHealthAt time.Time      `json:"last_health_at"`
 }
@@ -148,4 +154,34 @@ type ServiceRoute struct {
 	ActiveInstanceID string    `json:"active_instance_id"`
 	TLSEnabled       bool      `json:"tls_enabled"`
 	UpdatedAt        time.Time `json:"updated_at"`
+}
+
+type RuntimeStartRequest struct {
+	InstanceID   string            `json:"instance_id"`
+	Image        string            `json:"image"`
+	InternalPort int               `json:"internal_port"`
+	Env          map[string]string `json:"env,omitempty"`
+}
+
+type RuntimeStartResponse struct {
+	ContainerID  string `json:"container_id"`
+	ContainerRef string `json:"container_ref"`
+	HostPort     int    `json:"host_port"`
+}
+
+type RuntimeStopRequest struct {
+	ContainerRef string `json:"container_ref"`
+}
+
+type RuntimeCheckpointRequest struct {
+	ContainerRef string `json:"container_ref"`
+	MigrationID  string `json:"migration_id"`
+}
+
+type RuntimeRestoreRequest struct {
+	InstanceID   string            `json:"instance_id"`
+	Image        string            `json:"image"`
+	InternalPort int               `json:"internal_port"`
+	MigrationID  string            `json:"migration_id"`
+	Env          map[string]string `json:"env,omitempty"`
 }

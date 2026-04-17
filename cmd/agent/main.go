@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -10,6 +11,8 @@ import (
 
 	"github.com/julianbenz1/SpareCompute/internal/agent/client"
 	"github.com/julianbenz1/SpareCompute/internal/agent/metrics"
+	agentserver "github.com/julianbenz1/SpareCompute/internal/agent/server"
+	"github.com/julianbenz1/SpareCompute/internal/agent/runtime"
 )
 
 func main() {
@@ -17,6 +20,10 @@ func main() {
 	panelToken := os.Getenv("PANEL_TOKEN")
 	nodeID := getenv("NODE_ID", hostNameFallback())
 	intervalSeconds := getenvInt("HEARTBEAT_INTERVAL_SECONDS", 5)
+	agentAddr := getenv("AGENT_ADDR", ":18080")
+	controlURL := getenv("AGENT_CONTROL_URL", "http://127.0.0.1"+agentAddr)
+	publicAddr := getenv("NODE_PUBLIC_ADDRESS", "127.0.0.1")
+	migrationSharedDir := getenv("MIGRATION_SHARED_DIR", "/var/lib/sparecompute/migration")
 
 	reserve := metrics.ReserveConfig{
 		CPUPercent: getenvInt("RESERVED_CPU_PERCENT", 20),
@@ -27,11 +34,22 @@ func main() {
 	labels := parseLabels(os.Getenv("NODE_LABELS"))
 	c := client.New(panelURL, panelToken)
 	ctx := context.Background()
+	rt := runtime.NewDocker()
+	controlServer := agentserver.New(rt, migrationSharedDir, publicAddr)
+	httpServer := agentserver.NewHTTPServer(agentAddr, controlServer.Handler())
+	go func() {
+		log.Printf("agent control api listening on %s", agentAddr)
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("agent control api failed: %v", err)
+		}
+	}()
 
 	registerReq, heartbeatReq, err := metrics.Collect(nodeID, reserve, labels)
 	if err != nil {
 		log.Fatalf("collect metrics failed: %v", err)
 	}
+	registerReq.ControlAPIURL = controlURL
+	registerReq.PublicAddress = publicAddr
 	if err := c.PostJSON(ctx, "/api/nodes/register", registerReq); err != nil {
 		log.Fatalf("node registration failed: %v", err)
 	}
@@ -46,6 +64,7 @@ func main() {
 			<-ticker.C
 			continue
 		}
+		heartbeatReq.NodeID = nodeID
 		if err := c.PostJSON(ctx, "/api/nodes/heartbeat", heartbeatReq); err != nil {
 			log.Printf("heartbeat failed: %v", err)
 		}
