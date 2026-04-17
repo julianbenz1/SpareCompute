@@ -63,7 +63,7 @@ func score(n common.Node, d common.Deployment) int64 {
 
 func normalizedSlackInt64(shareable, required int64) int64 {
 	if required <= 0 {
-		return shareable
+		return 0
 	}
 	slack := shareable - required
 	return (slack * 1000) / required
