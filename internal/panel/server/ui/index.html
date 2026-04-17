@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SpareCompute Panel</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2rem; max-width: 900px; }
+    h1, h2 { margin-bottom: .5rem; }
+    .row { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: .5rem; }
+    input, select { padding: .4rem; }
+    button { padding: .45rem .8rem; cursor: pointer; }
+    pre { background: #f6f8fa; padding: 1rem; overflow: auto; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <h1>SpareCompute MVP Panel</h1>
+  <p>Management dashboard for nodes, deployments, and routes.</p>
+
+  <h2>Start deployment</h2>
+  <div class="row">
+    <input id="name" placeholder="name" value="web-frontend"/>
+    <input id="image" placeholder="image" value="nginx:alpine"/>
+    <input id="cpu" placeholder="cpu %" type="number" value="10"/>
+    <input id="ram" placeholder="ram mb" type="number" value="128"/>
+    <input id="disk" placeholder="disk mb" type="number" value="50"/>
+    <input id="port" placeholder="internal port" type="number" value="80"/>
+    <input id="domain" placeholder="domain (optional)" />
+    <select id="priority">
+      <option value="normal">normal</option>
+      <option value="high">high</option>
+      <option value="best_effort">best_effort</option>
+    </select>
+    <button onclick="createDeployment()">Deploy</button>
+    <button onclick="reconcile()">Reconcile</button>
+  </div>
+
+  <h2>Nodes</h2>
+  <pre id="nodes">loading...</pre>
+  <h2>Deployments</h2>
+  <pre id="deployments">loading...</pre>
+  <h2>Routes</h2>
+  <pre id="routes">loading...</pre>
+
+  <script>
+    async function fetchJSON(url, opts={}) {
+      const res = await fetch(url, opts);
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'request failed');
+      return body;
+    }
+
+    async function refresh() {
+      document.getElementById('nodes').textContent = JSON.stringify(await fetchJSON('/api/nodes'), null, 2);
+      document.getElementById('deployments').textContent = JSON.stringify(await fetchJSON('/api/deployments'), null, 2);
+      document.getElementById('routes').textContent = JSON.stringify(await fetchJSON('/api/routes'), null, 2);
+    }
+
+    async function createDeployment() {
+      const payload = {
+        name: document.getElementById('name').value,
+        image: document.getElementById('image').value,
+        cpu_limit_percent: parseInt(document.getElementById('cpu').value || '0', 10),
+        ram_limit_mb: parseInt(document.getElementById('ram').value || '0', 10),
+        disk_limit_mb: parseInt(document.getElementById('disk').value || '0', 10),
+        internal_port: parseInt(document.getElementById('port').value || '80', 10),
+        domain: document.getElementById('domain').value,
+        replicas: 1,
+        priority: document.getElementById('priority').value
+      };
+      try {
+        await fetchJSON('/api/deployments', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload)
+        });
+        await refresh();
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    async function reconcile() {
+      await fetchJSON('/api/reconcile', {method: 'POST'});
+      await refresh();
+    }
+
+    refresh();
+    setInterval(refresh, 15000);
+  </script>
+</body>
+</html>
