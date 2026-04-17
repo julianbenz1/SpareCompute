@@ -2,34 +2,35 @@
 
 Eine einfache Open-Source-Plattform, die ungenutzte Restleistung privater Server bündelt.
 
-## MVP-Status
+## Plattform-Status
 
-Dieses Repository enthält ein lauffähiges MVP mit:
+Dieses Repository enthält eine lauffähige Basisplattform mit:
 
 - **Panel-Server** (Go, HTTP API + einfache Weboberfläche)
-- **Node-Agent** (Go, ausgehende Registrierung + Heartbeats)
-- **Scheduler** für Erstplatzierung und einfache Migration (controlled replacement)
-- **ServiceRoute-Registry** (in-memory)
+- **Node-Agent** (Go, ausgehende Registrierung + Heartbeats + Runtime-Control-API)
+- **Scheduler** für Erstplatzierung und Live-Migration (Checkpoint/Restore)
+- **ServiceRoute-Registry** (persistente SQLite-Datenbank)
 - **Reserve-/Restleistungslogik** pro Node
-
-> Hinweis: Aktuell ist die Laufzeit- und Registry-Schicht bewusst leichtgewichtig und in-memory.
+- **Ingress-/TLS-Automatisierung** via Traefik Dynamic Config + ACME Resolver
 
 ## Architektur (MVP)
 
 - `cmd/panel`: Startet das zentrale Panel
 - `cmd/agent`: Startet einen Node-Agent
 - `internal/common`: Gemeinsame Domain-Modelle
-- `internal/panel/store`: In-Memory-Datenhaltung
-- `internal/panel/scheduler`: Auswahl geeigneter Nodes + Migrationsentscheidung
+- `internal/panel/store`: Persistenzschicht (SQLite + Cache)
+- `internal/panel/scheduler`: Auswahl geeigneter Nodes + Migrationsentscheidung (Live-Migration)
+- `internal/panel/ingress`: Traefik Dynamic-Config Writer
 - `internal/panel/server`: REST-API + eingebettete UI
 - `internal/agent/metrics`: Host-Metriken + Berechnung freigegebener Restleistung
-- `internal/agent/runtime`: Docker-Adapter (Basis)
+- `internal/agent/runtime`: Docker-Adapter inkl. Checkpoint/Restore
+- `internal/agent/server`: Runtime-Control-API pro Node
 
 ## Schnellstart
 
 ### Voraussetzungen
 
-- Go 1.22+
+- Go 1.24+
 - Linux (für aktuelle Agent-Metrikquellen wie `/proc`)
 
 ### Panel starten
@@ -43,6 +44,9 @@ Optional:
 
 - `PANEL_ADDR` (Default `:8080`)
 - `PANEL_TOKEN` (Bearer-Token für Agent-Endpoints)
+- `PANEL_DB_PATH` (Default `./data/panel.db`)
+- `PANEL_INGRESS_DYNAMIC_CONFIG_PATH` (Pfad zur Traefik dynamic config, z. B. `./data/traefik_dynamic.toml`)
+- `PANEL_INGRESS_CERT_RESOLVER` (Default `letsencrypt`)
 
 UI: `http://127.0.0.1:8080`
 
@@ -63,6 +67,11 @@ Optional:
 - `PANEL_TOKEN`
 - `HEARTBEAT_INTERVAL_SECONDS` (Default `5`)
 - `NODE_LABELS` (Format: `region=ch,class=home`)
+- `AGENT_ADDR` (Default `:18080`)
+- `AGENT_CONTROL_URL` (vom Panel erreichbare Runtime-API-URL)
+- `NODE_PUBLIC_ADDRESS` (vom Ingress erreichbare Node-Adresse/IP)
+- `MIGRATION_SHARED_DIR` (shared Filesystem für Docker-Checkpoint-Ordner)
+- `AGENT_CONTAINER_BIND_HOST` (Default `127.0.0.1`, für externes Ingress z. B. `0.0.0.0`)
 
 ## Kern-API (MVP)
 
@@ -75,12 +84,20 @@ Optional:
 - `GET /api/routes`
 - `POST /api/reconcile`
 
-## Scheduling- und Migrationslogik (MVP)
+## Scheduling- und Migrationslogik
 
 - Nur Nodes mit ausreichender **freigegebener** CPU/RAM/Disk werden berücksichtigt.
 - Reservewerte werden agentseitig in `shareable_*` eingerechnet.
-- Bei `POST /api/reconcile` werden Deployments auf Nodes mit Unterkapazität auf geeignete Ersatznodes verschoben.
+- Bei `POST /api/reconcile` werden Deployments auf Nodes mit Unterkapazität auf geeignete Ersatznodes migriert.
+- Primärpfad: Docker Checkpoint auf Source + Restore auf Target (`MIGRATION_SHARED_DIR`).
+- Fallback: controlled replacement (Start auf Target, danach Stop auf Source).
 - Umschaltung erfolgt über `ServiceRoute.active_instance_id`.
+
+## Ingress/TLS-Automatisierung
+
+- Das Panel generiert eine Traefik Dynamic Config-Datei (TOML) für aktive Domains.
+- Pro Route wird automatisch ein Router/Service auf die aktive Instanz geschrieben.
+- TLS wird pro Route über `certResolver` aktiviert (ACME/Let's Encrypt via Traefik-Static-Config).
 
 ## Build und Tests
 
@@ -91,9 +108,7 @@ go test ./...
 go build ./...
 ```
 
-## Bewusste MVP-Grenzen
+## Aktuelle Grenzen
 
-- In-memory statt persistenter Datenbank
-- Keine echte Live-Migration von Containern
-- Keine produktionsreife Ingress-/TLS-Automatisierung
-- Fokus auf stateless Workloads und controlled replacement
+- Live-Migration setzt Docker-Checkpoint/CRIU-Unterstützung und ein gemeinsames Checkpoint-Verzeichnis voraus.
+- Ingress/TLS-Automatisierung setzt einen extern gestarteten Traefik mit passender Static-Config voraus.

@@ -152,4 +152,3 @@ func NewHTTPServer(addr string, handler http.Handler) *http.Server {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 }
-

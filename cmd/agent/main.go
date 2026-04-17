@@ -11,8 +11,8 @@ import (
 
 	"github.com/julianbenz1/SpareCompute/internal/agent/client"
 	"github.com/julianbenz1/SpareCompute/internal/agent/metrics"
-	agentserver "github.com/julianbenz1/SpareCompute/internal/agent/server"
 	"github.com/julianbenz1/SpareCompute/internal/agent/runtime"
+	agentserver "github.com/julianbenz1/SpareCompute/internal/agent/server"
 )
 
 func main() {
@@ -24,6 +24,7 @@ func main() {
 	controlURL := getenv("AGENT_CONTROL_URL", "http://127.0.0.1"+agentAddr)
 	publicAddr := getenv("NODE_PUBLIC_ADDRESS", "127.0.0.1")
 	migrationSharedDir := getenv("MIGRATION_SHARED_DIR", "/var/lib/sparecompute/migration")
+	containerBindHost := getenv("AGENT_CONTAINER_BIND_HOST", "127.0.0.1")
 
 	reserve := metrics.ReserveConfig{
 		CPUPercent: getenvInt("RESERVED_CPU_PERCENT", 20),
@@ -34,7 +35,7 @@ func main() {
 	labels := parseLabels(os.Getenv("NODE_LABELS"))
 	c := client.New(panelURL, panelToken)
 	ctx := context.Background()
-	rt := runtime.NewDocker()
+	rt := runtime.NewDocker(containerBindHost)
 	controlServer := agentserver.New(rt, migrationSharedDir, publicAddr)
 	httpServer := agentserver.NewHTTPServer(agentAddr, controlServer.Handler())
 	go func() {

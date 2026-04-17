@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -298,9 +299,12 @@ func (s *Store) loadFromDB() error {
 	var nextIDRaw string
 	err := s.db.QueryRow(`SELECT value FROM meta WHERE key='next_id'`).Scan(&nextIDRaw)
 	if err == nil {
-		var parsed int64
-		_, _ = fmt.Sscanf(nextIDRaw, "%d", &parsed)
-		s.nextID = parsed
+		parsed, parseErr := strconv.ParseInt(strings.TrimSpace(nextIDRaw), 10, 64)
+		if parseErr != nil {
+			log.Printf("store persistence warning (meta next_id parse): %v", parseErr)
+		} else {
+			s.nextID = parsed
+		}
 	}
 	if err != nil && err != sql.ErrNoRows {
 		return err
@@ -337,7 +341,10 @@ func (s *Store) loadNodesLocked() error {
 		}
 		n.MaintenanceMode = maintenance == 1
 		if labelsRaw != "" {
-			_ = json.Unmarshal([]byte(labelsRaw), &n.Labels)
+			if err := json.Unmarshal([]byte(labelsRaw), &n.Labels); err != nil {
+				log.Printf("store persistence warning (node labels parse): %v", err)
+				n.Labels = map[string]string{}
+			}
 		}
 		n.LastSeenAt = parseTime(lastSeen)
 		s.nodes[n.ID] = n

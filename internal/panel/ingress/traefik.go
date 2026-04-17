@@ -101,4 +101,3 @@ func safeName(v string) string {
 func escapeDoubleQuotes(v string) string {
 	return strings.ReplaceAll(v, `"`, `\"`)
 }
-

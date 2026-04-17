@@ -24,7 +24,7 @@ func main() {
 		log.Fatalf("failed to initialize panel store: %v", err)
 	}
 	srv := &http.Server{
-		Addr:              addr,
+		Addr: addr,
 		Handler: server.New(
 			st,
 			token,

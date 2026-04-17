@@ -66,4 +66,3 @@ func (c *Client) post(ctx context.Context, baseURL, path string, payload any, ou
 	}
 	return json.NewDecoder(res.Body).Decode(out)
 }
-
