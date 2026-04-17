@@ -60,4 +60,3 @@ func score(n common.Node, d common.Deployment) int64 {
 	diskSlack := n.ShareableDiskMB - d.DiskLimitMB
 	return cpuSlack + ramSlack + diskSlack
 }
-

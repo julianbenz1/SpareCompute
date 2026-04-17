@@ -223,8 +223,6 @@ func (s *Server) placeDeployment(dep common.Deployment, excludeNodeID string) er
 	if old, ok := s.store.GetActiveInstanceByDeployment(dep.ID); ok && old.ID != newInstance.ID {
 		old.Status = common.InstanceStopping
 		s.store.SaveInstance(old)
-		old.Status = common.InstanceStopped
-		s.store.SaveInstance(old)
 	}
 
 	route := common.ServiceRoute{

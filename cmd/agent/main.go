@@ -96,4 +96,3 @@ func parseLabels(input string) map[string]string {
 	}
 	return result
 }
-

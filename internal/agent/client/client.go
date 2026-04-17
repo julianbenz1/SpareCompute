@@ -47,4 +47,3 @@ func (c *Client) PostJSON(ctx context.Context, path string, payload any) error {
 	}
 	return nil
 }
-

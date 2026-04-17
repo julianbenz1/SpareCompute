@@ -78,23 +78,23 @@ type NodeHeartbeatRequest struct {
 }
 
 type Deployment struct {
-	ID             string           `json:"id"`
-	ProjectID      string           `json:"project_id,omitempty"`
-	Name           string           `json:"name"`
-	Image          string           `json:"image"`
-	CPULimit       int              `json:"cpu_limit_percent"`
-	RAMLimitMB     int64            `json:"ram_limit_mb"`
-	DiskLimitMB    int64            `json:"disk_limit_mb"`
-	Replicas       int              `json:"replicas"`
-	Priority       Priority         `json:"priority"`
-	ExposedPort    int              `json:"exposed_port,omitempty"`
-	InternalPort   int              `json:"internal_port"`
-	Domain         string           `json:"domain,omitempty"`
-	Status         DeploymentStatus `json:"status"`
-	RestartPolicy  string           `json:"restart_policy,omitempty"`
-	ActiveNodeID   string           `json:"active_node_id,omitempty"`
-	CreatedAt      time.Time        `json:"created_at"`
-	UpdatedAt      time.Time        `json:"updated_at"`
+	ID            string           `json:"id"`
+	ProjectID     string           `json:"project_id,omitempty"`
+	Name          string           `json:"name"`
+	Image         string           `json:"image"`
+	CPULimit      int              `json:"cpu_limit_percent"`
+	RAMLimitMB    int64            `json:"ram_limit_mb"`
+	DiskLimitMB   int64            `json:"disk_limit_mb"`
+	Replicas      int              `json:"replicas"`
+	Priority      Priority         `json:"priority"`
+	ExposedPort   int              `json:"exposed_port,omitempty"`
+	InternalPort  int              `json:"internal_port"`
+	Domain        string           `json:"domain,omitempty"`
+	Status        DeploymentStatus `json:"status"`
+	RestartPolicy string           `json:"restart_policy,omitempty"`
+	ActiveNodeID  string           `json:"active_node_id,omitempty"`
+	CreatedAt     time.Time        `json:"created_at"`
+	UpdatedAt     time.Time        `json:"updated_at"`
 }
 
 type CreateDeploymentRequest struct {
@@ -123,22 +123,22 @@ const (
 type HealthStatus string
 
 const (
-	HealthUnknown  HealthStatus = "unknown"
-	HealthHealthy  HealthStatus = "healthy"
+	HealthUnknown   HealthStatus = "unknown"
+	HealthHealthy   HealthStatus = "healthy"
 	HealthUnhealthy HealthStatus = "unhealthy"
 )
 
 type Instance struct {
-	ID            string         `json:"id"`
-	DeploymentID  string         `json:"deployment_id"`
-	NodeID        string         `json:"node_id"`
-	ContainerID   string         `json:"container_id,omitempty"`
-	Status        InstanceStatus `json:"status"`
-	HealthStatus  HealthStatus   `json:"health_status"`
-	InternalIP    string         `json:"internal_ip,omitempty"`
-	InternalPort  int            `json:"internal_port"`
-	StartedAt     time.Time      `json:"started_at"`
-	LastHealthAt  time.Time      `json:"last_health_at"`
+	ID           string         `json:"id"`
+	DeploymentID string         `json:"deployment_id"`
+	NodeID       string         `json:"node_id"`
+	ContainerID  string         `json:"container_id,omitempty"`
+	Status       InstanceStatus `json:"status"`
+	HealthStatus HealthStatus   `json:"health_status"`
+	InternalIP   string         `json:"internal_ip,omitempty"`
+	InternalPort int            `json:"internal_port"`
+	StartedAt    time.Time      `json:"started_at"`
+	LastHealthAt time.Time      `json:"last_health_at"`
 }
 
 type ServiceRoute struct {
@@ -149,4 +149,3 @@ type ServiceRoute struct {
 	TLSEnabled       bool      `json:"tls_enabled"`
 	UpdatedAt        time.Time `json:"updated_at"`
 }
-

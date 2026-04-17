@@ -28,4 +28,3 @@ func TestNeedsMigration(t *testing.T) {
 		t.Fatal("expected migration to be needed")
 	}
 }
-

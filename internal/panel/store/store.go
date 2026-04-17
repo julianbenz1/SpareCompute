@@ -159,4 +159,3 @@ func (s *Store) MarkDeploymentStatus(deploymentID string, status common.Deployme
 	s.deployments[d.ID] = d
 	return d, true
 }
-
