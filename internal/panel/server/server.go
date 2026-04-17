@@ -208,6 +208,12 @@ func (s *Server) placeDeployment(dep common.Deployment, excludeNodeID string) er
 		}
 		return errors.New("scheduler failed")
 	}
+	old, hadOld := s.store.GetActiveInstanceByDeployment(dep.ID)
+	if hadOld {
+		old.Status = common.InstanceStopping
+		s.store.SaveInstance(old)
+	}
+
 	newInstance := common.Instance{
 		ID:           s.store.NewID("inst"),
 		DeploymentID: dep.ID,
@@ -219,11 +225,6 @@ func (s *Server) placeDeployment(dep common.Deployment, excludeNodeID string) er
 		LastHealthAt: time.Now().UTC(),
 	}
 	s.store.SaveInstance(newInstance)
-
-	if old, ok := s.store.GetActiveInstanceByDeployment(dep.ID); ok && old.ID != newInstance.ID {
-		old.Status = common.InstanceStopping
-		s.store.SaveInstance(old)
-	}
 
 	route := common.ServiceRoute{
 		ID:               s.store.NewID("route"),

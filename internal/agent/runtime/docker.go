@@ -18,8 +18,7 @@ func (d *Docker) StartContainer(ctx context.Context, image string, name string, 
 		args = append(args, "-e", k+"="+v)
 	}
 	if internalPort > 0 {
-		port := strconv.Itoa(internalPort)
-		args = append(args, "-p", "127.0.0.1:"+port+":"+port)
+		args = append(args, "--expose", strconv.Itoa(internalPort))
 	}
 	args = append(args, image)
 	return exec.CommandContext(ctx, "docker", args...).Run()

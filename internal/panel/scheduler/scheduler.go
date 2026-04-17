@@ -55,8 +55,16 @@ func NeedsMigration(current common.Node, d common.Deployment) bool {
 }
 
 func score(n common.Node, d common.Deployment) int64 {
-	cpuSlack := int64(n.ShareableCPU - d.CPULimit)
-	ramSlack := n.ShareableRAMMB - d.RAMLimitMB
-	diskSlack := n.ShareableDiskMB - d.DiskLimitMB
-	return cpuSlack + ramSlack + diskSlack
+	cpuScore := normalizedSlackInt64(int64(n.ShareableCPU), int64(d.CPULimit))
+	ramScore := normalizedSlackInt64(n.ShareableRAMMB, d.RAMLimitMB)
+	diskScore := normalizedSlackInt64(n.ShareableDiskMB, d.DiskLimitMB)
+	return cpuScore + ramScore + diskScore
+}
+
+func normalizedSlackInt64(shareable, required int64) int64 {
+	if required <= 0 {
+		return shareable
+	}
+	slack := shareable - required
+	return (slack * 1000) / required
 }
